@@ -211,14 +211,14 @@ int get_cursor_position(int *rows, int *cols) {
 
 void draw_lines(struct buffer *buffer) {
 
-    char welcome[80];
-    int welcome_length = snprintf(welcome, sizeof(welcome), "My editor - version %s", EDITOR_VERSION);
+    char message[40];
+    int message_length = snprintf(message, sizeof(message), "My editor - version %s", EDITOR_VERSION);
 
-    if (welcome_length > editor.screen_cols) {
-        welcome_length = editor.screen_cols;
+    if (message_length > editor.screen_cols) {
+        message_length = editor.screen_cols;
     }
 
-    append_buffer(buffer, welcome, welcome_length);
+    append_buffer(buffer, message, message_length);
 
     for (int row = 1; row < editor.screen_rows; row++) {
         
