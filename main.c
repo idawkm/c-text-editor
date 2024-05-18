@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <sys/ioctl.h>
 #include <string.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -27,7 +28,7 @@ struct editor {
     int screen_rows;
     int screen_cols;
     int num_rows;
-    erow row;
+    erow *row;
     struct termios default_terminal_config;
 };
 
@@ -43,6 +44,7 @@ enum arrows {
 void enable_raw_mode();
 void disable_raw_mode();
 void append_buffer(struct buffer *buffer, const char *s, int length);
+void append_row(char *s, size_t length);
 void release_buffer(struct buffer *buffer);
 void move_cursor(int key);
 void panic(const char *s);
@@ -51,18 +53,21 @@ int get_key_press();
 void handle_key_press();
 
 void setup_editor();
-void open_editor();
+void open_editor(const char *filename);
 void refresh_screen();
 int get_window_size(int *rows, int *cols);
 int get_cursor_position(int *rows, int *cols);
 void draw_header(struct buffer *buffer);
 void draw_lines(struct buffer *buffer);
 
-int main() {
+int main(int argc, char *argv[]) {
 
     enable_raw_mode();
     setup_editor();
-    open_editor();
+
+    if (argc >= 2){
+        open_editor(argv[1]);
+    }
 
     while(1) {
 
@@ -112,6 +117,18 @@ void append_buffer(struct buffer *buffer, const char *s, int length) {
     memcpy(&data[buffer->length], s, length);
     buffer->data = data;
     buffer->length += length;
+}
+
+void append_row(char *s, size_t length) {
+
+    printf("%s\n", s);
+    editor.row = realloc(editor.row, sizeof(erow) * (editor.num_rows + 1));
+    int at = editor.num_rows;
+    editor.row[at].size = length;
+    editor.row[at].text = malloc(length + 1);
+    memcpy(editor.row[at].text, s, length);
+    editor.row[at].text[length] = '\0';
+    editor.num_rows += 1;
 }
 
 void release_buffer(struct buffer *buffer) {
@@ -222,6 +239,7 @@ void setup_editor() {
     editor.num_rows = 0;
     editor.x = 0;
     editor.y = 0;
+    editor.row = NULL;
     int code = get_window_size(&editor.screen_rows, &editor.screen_cols);
 
     if (code == -1) {
@@ -229,16 +247,33 @@ void setup_editor() {
     }
 }
 
-void open_editor() {
-    char *line = "Hello, World";
-    ssize_t size = strlen(line);
+void open_editor(const char *filename) {
 
-    editor.row.size = size;
-    editor.row.text = malloc(size + 1);
-    memcpy(editor.row.text, line, size);
-    editor.row.text[size] = '\0';
-    editor.num_rows = 1;
-}
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        panic("could not open the file");
+    }
+
+    char *line = NULL;
+    size_t linecap = 0;
+    ssize_t line_width; 
+    
+    while((line_width = getline(&line, &linecap, file)) != -1) {
+
+        while(line_width > 0 && (
+            line[line_width - 1] == '\n' ||
+            line[line_width - 1] == '\r'
+        )) {
+            line_width--;
+        }
+
+        append_row(line, line_width);
+    }
+
+    free(line);
+    fclose(file);
+}    
 
 void refresh_screen() {
 
@@ -332,20 +367,19 @@ void draw_header(struct buffer *buffer) {
 
 void draw_lines(struct buffer *buffer) {
 
-    draw_header(buffer);
-
-    for (int row = 1; row < editor.screen_rows; row++) {
+    for (int row = 0; row < editor.screen_rows; row++) {
         
         append_buffer(buffer, "~", 1);
         append_buffer(buffer, "\x1b[K", 3);
+        
+        if (row < editor.num_rows) {
 
-        if (editor.num_rows > 0 && row == 2) {
-            int size = editor.row.size;
+            int size = editor.row[row].size;
             if (size > editor.screen_cols) {
                 size = editor.screen_cols;
             }
 
-            append_buffer(buffer, editor.row.text, size);
+            append_buffer(buffer, editor.row[row].text, size);
         }
         
         if (row < editor.screen_rows - 1) {
