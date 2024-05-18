@@ -16,11 +16,18 @@ struct buffer {
     int length;
 };
 
+typedef struct erow {
+    int size;
+    char *text;
+} erow;
+
 struct editor {
     int x;
     int y;
     int screen_rows;
     int screen_cols;
+    int num_rows;
+    erow row;
     struct termios default_terminal_config;
 };
 
@@ -44,6 +51,7 @@ int get_key_press();
 void handle_key_press();
 
 void setup_editor();
+void open_editor();
 void refresh_screen();
 int get_window_size(int *rows, int *cols);
 int get_cursor_position(int *rows, int *cols);
@@ -54,6 +62,7 @@ int main() {
 
     enable_raw_mode();
     setup_editor();
+    open_editor();
 
     while(1) {
 
@@ -210,6 +219,7 @@ void panic(const char *s) {
 
 void setup_editor() {
 
+    editor.num_rows = 0;
     editor.x = 0;
     editor.y = 0;
     int code = get_window_size(&editor.screen_rows, &editor.screen_cols);
@@ -217,6 +227,17 @@ void setup_editor() {
     if (code == -1) {
         panic("could not get window size");
     }
+}
+
+void open_editor() {
+    char *line = "Hello, World";
+    ssize_t size = strlen(line);
+
+    editor.row.size = size;
+    editor.row.text = malloc(size + 1);
+    memcpy(editor.row.text, line, size);
+    editor.row.text[size] = '\0';
+    editor.num_rows = 1;
 }
 
 void refresh_screen() {
@@ -317,6 +338,15 @@ void draw_lines(struct buffer *buffer) {
         
         append_buffer(buffer, "~", 1);
         append_buffer(buffer, "\x1b[K", 3);
+
+        if (editor.num_rows > 0 && row == 2) {
+            int size = editor.row.size;
+            if (size > editor.screen_cols) {
+                size = editor.screen_cols;
+            }
+
+            append_buffer(buffer, editor.row.text, size);
+        }
         
         if (row < editor.screen_rows - 1) {
             append_buffer(buffer, "\r\n", 2);
