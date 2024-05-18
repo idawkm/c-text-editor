@@ -16,10 +16,10 @@ int main() {
     while(read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
 
         if (iscntrl(c)) {
-            printf("%d\n", c);
+            printf("%d\r\n", c);
         }
         else {
-            printf("%c\n", c);
+            printf("%c\r\n", c);
         }
     }
     return 0;
@@ -31,8 +31,12 @@ void enable_raw_mode() {
     atexit(disable_raw_mode);
 
     struct termios custom_terminal_config = default_terminal_config;
-    custom_terminal_config.c_iflag &= ~(IXON);
-    custom_terminal_config.c_lflag &= ~(ECHO | ICANON | ISIG);
+    custom_terminal_config.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    custom_terminal_config.c_oflag &= ~(OPOST);
+    custom_terminal_config.c_cflag |= (CS8);
+    custom_terminal_config.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    custom_terminal_config.c_cc[VMIN] = 0;
+    custom_terminal_config.c_cc[VTIME] = 1;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &custom_terminal_config);
 }
 
