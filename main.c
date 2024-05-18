@@ -12,16 +12,20 @@ void enable_raw_mode();
 void disable_raw_mode();
 void panic(const char *s);
 
+
 char get_key_press();
-void on_key_press();
+void handle_key_press();
+
+void refresh_screen();
 
 int main() {
 
     enable_raw_mode();
-    
+
     while(1) {
 
-        on_key_press();
+        refresh_screen();
+        handle_key_press();
     }
     return 0;
 }
@@ -41,7 +45,7 @@ char get_key_press() {
     return c;
 }
 
-void on_key_press() {
+void handle_key_press() {
 
     char c = get_key_press();
 
@@ -86,4 +90,9 @@ void panic(const char *s) {
 
     perror(s);
     exit(1);
+}
+
+void refresh_screen() {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
 }
