@@ -4,9 +4,11 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
+#include <string.h>
 #include <termios.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define BUF_INIT {NULL, 0}
 
 struct EditorConfig {
     int screen_rows;
@@ -14,6 +16,11 @@ struct EditorConfig {
     struct termios orig_termios;
 };
 struct EditorConfig ec;
+
+struct Buffer {
+    char *b;
+    int length;
+};
 
 void init_editor();
 void draw_rows();
@@ -24,6 +31,8 @@ void editor_refresh_screen();
 void on_key_press();
 void die(const char *s);
 int get_window_size(int *rows, int *cols);
+void buffer_append(struct Buffer *buf, const char *s, int length);
+void buffer_free(struct Buffer *buf);
 
 int main() {
 
@@ -37,23 +46,51 @@ int main() {
     return 0;
 }
 
+void buffer_append(struct Buffer *buf, const char *s, int length) {
+
+    char *new = realloc(buf->b, buf->length + length);
+
+    if (new == NULL) {
+        return;
+    }
+
+    memcpy(&new[buf->length], s, length);
+    buf->b = new;
+    buf->length += length;
+}
+
+void buffer_free(struct Buffer *buf) {
+    free(buf->b);
+}
+
 void init_editor() {
     if (get_window_size(&ec.screen_rows, &ec.screen_cols) == -1) {
         die("get window size");
     }
 }
 
-void draw_rows() {
+void draw_rows(struct Buffer *buf) {
 
-    for (int y = 0; y < 24; y++) {
-        write(STDOUT_FILENO,  "~\r\n", 3);
+    for (int y = 0; y < ec.screen_rows; y++) {
+        buffer_append(buf, "~", 1);
+
+        if (y < ec.screen_rows - 1) {
+            buffer_append(buf, "\r\n", 2);
+        } 
     }
 }
 
 void editor_refresh_screen() {
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    draw_rows();
+
+    struct Buffer buf = BUF_INIT;
+
+    buffer_append(&buf, "\x1b[2J", 4);
+    buffer_append(&buf, "\x1b[2J", 3);
+    
+    draw_rows(&buf);
+
     write(STDOUT_FILENO, "\x1b[H", 3);
+    buffer_free(&buf);
 }
 
 char editor_read_key() {
