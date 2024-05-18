@@ -3,10 +3,17 @@
 #include <errno.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
+#include <string.h>
 #include <termios.h>
 #include <unistd.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define BUFFER_INIT {NULL, 0}
+
+struct buffer {
+    char *data;
+    int length;
+};
 
 struct editor {
     int screen_rows;
@@ -18,6 +25,8 @@ struct editor editor;
 
 void enable_raw_mode();
 void disable_raw_mode();
+void append_buffer(struct buffer *buffer, const char *s, int length);
+void buffer_free(struct buffer *buffer);
 void panic(const char *s);
 
 char get_key_press();
@@ -27,7 +36,7 @@ void setup_editor();
 void refresh_screen();
 int get_window_size(int *rows, int *cols);
 int get_cursor_position(int *rows, int *cols);
-void draw_lines();
+void draw_lines(struct buffer *buffer);
 
 int main() {
 
@@ -40,6 +49,23 @@ int main() {
         handle_key_press();
     }
     return 0;
+}
+
+void append_buffer(struct buffer *buffer, const char *s, int length) {
+
+    char *data = realloc(buffer->data, buffer->length + length);
+
+    if (data == NULL) {
+        return;
+    }
+
+    memcpy(&data[buffer->length], s, length);
+    buffer->data = data;
+    buffer->length += length;
+}
+
+void buffer_free(struct buffer *buffer) {
+    free(buffer->data);
 }
 
 char get_key_press() {
@@ -117,12 +143,17 @@ void setup_editor() {
 }
 
 void refresh_screen() {
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
 
-    draw_lines();
+    struct buffer buffer = BUFFER_INIT;
 
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    append_buffer(&buffer, "\x1b[2J", 4);
+    append_buffer(&buffer, "\x1b[H", 3);
+
+    draw_lines(&buffer);
+
+    append_buffer(&buffer, "\x1b[H", 3);
+    write(STDOUT_FILENO, buffer.data, buffer.length);
+    buffer_free(&buffer);
 }
 
 int get_window_size(int *rows, int *cols) {
@@ -175,9 +206,14 @@ int get_cursor_position(int *rows, int *cols) {
     return 0;
 }
 
-void draw_lines() {
+void draw_lines(struct buffer *buffer) {
 
     for (int row = 0; row < editor.screen_rows; row++) {
-        write(STDOUT_FILENO, "~\r\n", 3);
+        
+        append_buffer(buffer, "~", 1);
+
+        if (row < editor.screen_rows - 1) {
+            append_buffer(buffer, "\r\n", 2);
+        }
     }
 }
