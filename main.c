@@ -184,7 +184,7 @@ void refresh_screen() {
     draw_lines(&buffer);
 
     char cursor[32];
-    snprintf(cursor, sizeof(cursor), "\x1b[%d;%dH", editor.x + 1, editor.y+1);
+    snprintf(cursor, sizeof(cursor), "\x1b[%d;%dH", editor.y + 1, editor.x+1);
     append_buffer(&buffer, cursor, strlen(cursor));
 
     append_buffer(&buffer, "\x1b[?25h", 6);
