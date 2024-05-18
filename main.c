@@ -9,6 +9,7 @@
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define BUFFER_INIT {NULL, 0}
+#define EDITOR_VERSION "1.0.0"
 
 struct buffer {
     char *data;
@@ -146,12 +147,14 @@ void refresh_screen() {
 
     struct buffer buffer = BUFFER_INIT;
 
+    append_buffer(&buffer, "\x1b[?25l", 6);
     append_buffer(&buffer, "\x1b[2J", 4);
     append_buffer(&buffer, "\x1b[H", 3);
 
     draw_lines(&buffer);
 
     append_buffer(&buffer, "\x1b[H", 3);
+    append_buffer(&buffer, "\x1b[?25h", 6);
     write(STDOUT_FILENO, buffer.data, buffer.length);
     buffer_free(&buffer);
 }
@@ -208,10 +211,20 @@ int get_cursor_position(int *rows, int *cols) {
 
 void draw_lines(struct buffer *buffer) {
 
-    for (int row = 0; row < editor.screen_rows; row++) {
+    char welcome[80];
+    int welcome_length = snprintf(welcome, sizeof(welcome), "My editor - version %s", EDITOR_VERSION);
+
+    if (welcome_length > editor.screen_cols) {
+        welcome_length = editor.screen_cols;
+    }
+
+    append_buffer(buffer, welcome, welcome_length);
+
+    for (int row = 1; row < editor.screen_rows; row++) {
         
         append_buffer(buffer, "~", 1);
-
+        append_buffer(buffer, "\x1b[K", 3);
+        
         if (row < editor.screen_rows - 1) {
             append_buffer(buffer, "\r\n", 2);
         }
