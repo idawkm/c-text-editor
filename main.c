@@ -26,14 +26,21 @@ struct editor {
 
 struct editor editor;
 
+enum arrows {
+    ARROW_LEFT = 1000,
+    ARROW_RIGHT,
+    ARROW_UP,
+    ARROW_DOWN
+};
+
 void enable_raw_mode();
 void disable_raw_mode();
 void append_buffer(struct buffer *buffer, const char *s, int length);
 void release_buffer(struct buffer *buffer);
-void move_cursor(char key);
+void move_cursor(int key);
 void panic(const char *s);
 
-char get_key_press();
+int get_key_press();
 void handle_key_press();
 
 void setup_editor();
@@ -56,21 +63,31 @@ int main() {
     return 0;
 }
 
-void move_cursor(char key) {
+void move_cursor(int key) {
 
     switch(key) {
         
-        case 'a':
-            editor.x--;
+        case ARROW_LEFT:
+
+            if (editor.x != 0) {
+                editor.x--;
+            }
             break;
-        case 'd':
-            editor.x++;
+        case  ARROW_RIGHT:
+            if (editor.x != editor.screen_cols - 1) {
+                editor.x++;
+            }
             break;
-        case 'w':
-            editor.y--;
+        case ARROW_UP:
+            if (editor.y != 0) {
+                editor.y--;
+            }
             break;
-        case 's':
-            editor.y++;
+        case ARROW_DOWN:
+
+            if (editor.y != editor.screen_rows - 1) {
+                editor.y++;
+            }
             break;
     }
 }
@@ -92,7 +109,7 @@ void release_buffer(struct buffer *buffer) {
     free(buffer->data);
 }
 
-char get_key_press() {
+int get_key_press() {
 
     int nread;
     char c;
@@ -120,10 +137,10 @@ char get_key_press() {
 
             switch(sequence[1]) {
 
-                case 'A': return 'w';
-                case 'B': return 's';
-                case 'C': return 'd';
-                case 'D': return 'a';
+                case 'A': return ARROW_UP;
+                case 'B': return ARROW_DOWN;
+                case 'C': return ARROW_RIGHT;
+                case 'D': return ARROW_LEFT;
             }
         } 
 
@@ -135,17 +152,19 @@ char get_key_press() {
 
 void handle_key_press() {
 
-    char c = get_key_press();
+    int c = get_key_press();
 
     switch(c) {
 
         case CTRL_KEY('q'):
+            write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
             break;
-        case 'a':
-        case 's':
-        case 'd':
-        case 'w':
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+        case ARROW_UP:
+        case ARROW_DOWN:
             move_cursor(c);
             break;
     }
