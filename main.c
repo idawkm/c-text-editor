@@ -17,6 +17,8 @@ struct buffer {
 };
 
 struct editor {
+    int x;
+    int y;
     int screen_rows;
     int screen_cols;
     struct termios default_terminal_config;
@@ -27,7 +29,8 @@ struct editor editor;
 void enable_raw_mode();
 void disable_raw_mode();
 void append_buffer(struct buffer *buffer, const char *s, int length);
-void buffer_free(struct buffer *buffer);
+void release_buffer(struct buffer *buffer);
+void move_cursor(char key);
 void panic(const char *s);
 
 char get_key_press();
@@ -37,6 +40,7 @@ void setup_editor();
 void refresh_screen();
 int get_window_size(int *rows, int *cols);
 int get_cursor_position(int *rows, int *cols);
+void draw_header(struct buffer *buffer);
 void draw_lines(struct buffer *buffer);
 
 int main() {
@@ -52,6 +56,25 @@ int main() {
     return 0;
 }
 
+void move_cursor(char key) {
+
+    switch(key) {
+        
+        case 'a':
+            editor.x--;
+            break;
+        case 'd':
+            editor.x++;
+            break;
+        case 'w':
+            editor.y--;
+            break;
+        case 's':
+            editor.y++;
+            break;
+    }
+}
+
 void append_buffer(struct buffer *buffer, const char *s, int length) {
 
     char *data = realloc(buffer->data, buffer->length + length);
@@ -65,7 +88,7 @@ void append_buffer(struct buffer *buffer, const char *s, int length) {
     buffer->length += length;
 }
 
-void buffer_free(struct buffer *buffer) {
+void release_buffer(struct buffer *buffer) {
     free(buffer->data);
 }
 
@@ -92,6 +115,12 @@ void handle_key_press() {
 
         case CTRL_KEY('q'):
             exit(0);
+            break;
+        case 'a':
+        case 's':
+        case 'd':
+        case 'w':
+            move_cursor(c);
             break;
     }
 }
@@ -136,6 +165,8 @@ void panic(const char *s) {
 
 void setup_editor() {
 
+    editor.x = 0;
+    editor.y = 0;
     int code = get_window_size(&editor.screen_rows, &editor.screen_cols);
 
     if (code == -1) {
@@ -148,15 +179,17 @@ void refresh_screen() {
     struct buffer buffer = BUFFER_INIT;
 
     append_buffer(&buffer, "\x1b[?25l", 6);
-    append_buffer(&buffer, "\x1b[2J", 4);
     append_buffer(&buffer, "\x1b[H", 3);
 
     draw_lines(&buffer);
 
-    append_buffer(&buffer, "\x1b[H", 3);
+    char cursor[32];
+    snprintf(cursor, sizeof(cursor), "\x1b[%d;%dH", editor.x + 1, editor.y+1);
+    append_buffer(&buffer, cursor, strlen(cursor));
+
     append_buffer(&buffer, "\x1b[?25h", 6);
     write(STDOUT_FILENO, buffer.data, buffer.length);
-    buffer_free(&buffer);
+    release_buffer(&buffer);
 }
 
 int get_window_size(int *rows, int *cols) {
@@ -209,7 +242,7 @@ int get_cursor_position(int *rows, int *cols) {
     return 0;
 }
 
-void draw_lines(struct buffer *buffer) {
+void draw_header(struct buffer *buffer) {
 
     char message[40];
     int message_length = snprintf(message, sizeof(message), "My editor - version %s", EDITOR_VERSION);
@@ -218,7 +251,22 @@ void draw_lines(struct buffer *buffer) {
         message_length = editor.screen_cols;
     }
 
+    int padding = (editor.screen_cols - message_length) / 2;
+    if (padding) {
+        append_buffer(buffer, "~", 1);
+        padding--;
+    }
+
+    while(padding--) {
+        append_buffer(buffer, " ", 1);
+    }
+
     append_buffer(buffer, message, message_length);
+}
+
+void draw_lines(struct buffer *buffer) {
+
+    draw_header(buffer);
 
     for (int row = 1; row < editor.screen_rows; row++) {
         
