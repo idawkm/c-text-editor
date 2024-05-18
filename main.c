@@ -104,6 +104,32 @@ char get_key_press() {
         }
     }
 
+    if (c == '\x1b') {
+
+        char sequence[3];
+
+        if (read(STDIN_FILENO, &sequence[0], 1) != 1) {
+            return '\x1b';
+        }
+
+        if (read(STDIN_FILENO, &sequence[1], 1) != 1) {
+            return '\x1b';
+        }
+
+        if (sequence[0] == '[') {
+
+            switch(sequence[1]) {
+
+                case 'A': return 'w';
+                case 'B': return 's';
+                case 'C': return 'd';
+                case 'D': return 'a';
+            }
+        } 
+
+        return '\x1b';
+    }
+
     return c;
 }
 
