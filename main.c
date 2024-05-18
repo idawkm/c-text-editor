@@ -16,27 +16,42 @@ struct buffer {
     int length;
 };
 
+typedef struct erow {
+    int size;
+    char *text;
+} erow;
+
 struct editor {
     int x;
     int y;
     int screen_rows;
     int screen_cols;
+    int num_rows;
+    erow row;
     struct termios default_terminal_config;
 };
 
 struct editor editor;
 
+enum arrows {
+    ARROW_LEFT = 1000,
+    ARROW_RIGHT,
+    ARROW_UP,
+    ARROW_DOWN
+};
+
 void enable_raw_mode();
 void disable_raw_mode();
 void append_buffer(struct buffer *buffer, const char *s, int length);
 void release_buffer(struct buffer *buffer);
-void move_cursor(char key);
+void move_cursor(int key);
 void panic(const char *s);
 
-char get_key_press();
+int get_key_press();
 void handle_key_press();
 
 void setup_editor();
+void open_editor();
 void refresh_screen();
 int get_window_size(int *rows, int *cols);
 int get_cursor_position(int *rows, int *cols);
@@ -47,6 +62,7 @@ int main() {
 
     enable_raw_mode();
     setup_editor();
+    open_editor();
 
     while(1) {
 
@@ -56,21 +72,31 @@ int main() {
     return 0;
 }
 
-void move_cursor(char key) {
+void move_cursor(int key) {
 
     switch(key) {
         
-        case 'a':
-            editor.x--;
+        case ARROW_LEFT:
+
+            if (editor.x != 0) {
+                editor.x--;
+            }
             break;
-        case 'd':
-            editor.x++;
+        case  ARROW_RIGHT:
+            if (editor.x != editor.screen_cols - 1) {
+                editor.x++;
+            }
             break;
-        case 'w':
-            editor.y--;
+        case ARROW_UP:
+            if (editor.y != 0) {
+                editor.y--;
+            }
             break;
-        case 's':
-            editor.y++;
+        case ARROW_DOWN:
+
+            if (editor.y != editor.screen_rows - 1) {
+                editor.y++;
+            }
             break;
     }
 }
@@ -92,7 +118,7 @@ void release_buffer(struct buffer *buffer) {
     free(buffer->data);
 }
 
-char get_key_press() {
+int get_key_press() {
 
     int nread;
     char c;
@@ -104,22 +130,50 @@ char get_key_press() {
         }
     }
 
+    if (c == '\x1b') {
+
+        char sequence[3];
+
+        if (read(STDIN_FILENO, &sequence[0], 1) != 1) {
+            return '\x1b';
+        }
+
+        if (read(STDIN_FILENO, &sequence[1], 1) != 1) {
+            return '\x1b';
+        }
+
+        if (sequence[0] == '[') {
+
+            switch(sequence[1]) {
+
+                case 'A': return ARROW_UP;
+                case 'B': return ARROW_DOWN;
+                case 'C': return ARROW_RIGHT;
+                case 'D': return ARROW_LEFT;
+            }
+        } 
+
+        return '\x1b';
+    }
+
     return c;
 }
 
 void handle_key_press() {
 
-    char c = get_key_press();
+    int c = get_key_press();
 
     switch(c) {
 
         case CTRL_KEY('q'):
+            write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
             break;
-        case 'a':
-        case 's':
-        case 'd':
-        case 'w':
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+        case ARROW_UP:
+        case ARROW_DOWN:
             move_cursor(c);
             break;
     }
@@ -165,6 +219,7 @@ void panic(const char *s) {
 
 void setup_editor() {
 
+    editor.num_rows = 0;
     editor.x = 0;
     editor.y = 0;
     int code = get_window_size(&editor.screen_rows, &editor.screen_cols);
@@ -172,6 +227,17 @@ void setup_editor() {
     if (code == -1) {
         panic("could not get window size");
     }
+}
+
+void open_editor() {
+    char *line = "Hello, World";
+    ssize_t size = strlen(line);
+
+    editor.row.size = size;
+    editor.row.text = malloc(size + 1);
+    memcpy(editor.row.text, line, size);
+    editor.row.text[size] = '\0';
+    editor.num_rows = 1;
 }
 
 void refresh_screen() {
@@ -272,6 +338,15 @@ void draw_lines(struct buffer *buffer) {
         
         append_buffer(buffer, "~", 1);
         append_buffer(buffer, "\x1b[K", 3);
+
+        if (editor.num_rows > 0 && row == 2) {
+            int size = editor.row.size;
+            if (size > editor.screen_cols) {
+                size = editor.screen_cols;
+            }
+
+            append_buffer(buffer, editor.row.text, size);
+        }
         
         if (row < editor.screen_rows - 1) {
             append_buffer(buffer, "\r\n", 2);
