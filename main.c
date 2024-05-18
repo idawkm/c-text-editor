@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -14,7 +15,12 @@ int main() {
     char c;
     while(read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
 
-        printf("[%c]", c);
+        if (iscntrl(c)) {
+            printf("%d\n", c);
+        }
+        else {
+            printf("%c\n", c);
+        }
     }
     return 0;
 }
@@ -25,8 +31,8 @@ void enable_raw_mode() {
     atexit(disable_raw_mode);
 
     struct termios custom_terminal_config = default_terminal_config;
-    custom_terminal_config.c_lflag &= ~(ECHO | ICANON);
-
+    custom_terminal_config.c_iflag &= ~(IXON);
+    custom_terminal_config.c_lflag &= ~(ECHO | ICANON | ISIG);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &custom_terminal_config);
 }
 
