@@ -28,12 +28,19 @@ int get_window_size(int *rows, int *cols);
 int main() {
 
     enable_raw_mode();
+    init_editor();
     
     while(1) {
         editor_refresh_screen();
         on_key_press();
     };
     return 0;
+}
+
+void init_editor() {
+    if (get_window_size(&ec.screen_rows, &ec.screen_cols) == -1) {
+        die("get window size");
+    }
 }
 
 void draw_rows() {
